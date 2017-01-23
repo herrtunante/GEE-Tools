@@ -192,7 +192,6 @@ def generateChips(chip):
 chipList = plots_for_chips.toList(100)
 size = chipList.size().getInfo()
 
-
 for i in range(0, size):
     generateChips( ee.Feature( chipList.get(i) ) )
 
