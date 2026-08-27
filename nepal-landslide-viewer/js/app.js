@@ -19,8 +19,8 @@ var PHASES = {
 // Rescue-relevant settlements along the corridor (approximate coordinates —
 // verify precise positions against the imagery itself before tasking teams).
 var POIS = [
-  { name: 'Rasuwagadhi',     sub: 'Nepal–China border crossing', lat: 28.2779, lng: 85.3785 },
-  { name: 'Timure',          sub: 'village + customs yard',      lat: 28.2560, lng: 85.3838 },
+  { name: 'Rasuwagadhi',     sub: 'Nepal–China border crossing', lat: 28.2795, lng: 85.3768 },
+  { name: 'Timure',          sub: 'village + customs yard',      lat: 28.2545, lng: 85.3640 },
   { name: 'Syabrubesi',      sub: 'trailhead town',              lat: 28.1607, lng: 85.3346 },
   { name: 'Dhunche',         sub: 'Rasuwa district HQ',          lat: 28.1103, lng: 85.2966 },
   { name: 'Betrawati',       sub: 'valley-mouth town',           lat: 27.9683, lng: 85.1862 },
