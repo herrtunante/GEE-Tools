@@ -38,6 +38,23 @@ required**. Any static host works.
   pansharpened detail can be inspected at building scale.
 - **Rescue-relevant landmarks** — one-click zoom to Rasuwagadhi, Timure,
   Syabrubesi, Dhunche, Betrawati and Trishuli Bazaar.
+- **Shareable view links** — the URL hash tracks position, zoom, display
+  mode, band combination and swipe position; "Copy view link" hands a
+  colleague this exact view.
+- **Annotations** — draw markers, lines and areas (hazard / blocked route /
+  access confirmed / info) with notes. Stored in the browser
+  (localStorage) and exchanged as GeoJSON files via Export/Import, so a
+  coordinator can mark up the map and send the file to field teams.
+- **Vegetation-loss overlay (ΔNDVI)** — a precomputed screening layer:
+  mean clear-sky NDVI drop between 27 May and 26 Aug on a ~24 m grid,
+  cloud-masked with UDM2, in two classes (severe / probable). Regenerate
+  with `tools/make_ndvi_change.py` (needs `rasterio`, `pillow`) when the
+  dataset gains scenes. It is a screening aid — pre-event is surface
+  reflectance and post-event TOA radiance, and monsoon agriculture can
+  register as change — so cross-check against imagery.
+- **Offline support** — a service worker precaches the app shell and keeps
+  visited imagery byte-ranges and basemap tiles, so areas already viewed
+  keep working on a degraded or absent connection in the field.
 - **Scene footprints & metadata** — acquisition time, cloud cover, GSD and
   platform per scene; per-scene visibility toggles with thumbnails.
 - **Caveat surfacing** — monsoon cloud cover, non-coincident footprints and
