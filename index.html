@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nepal Outburst Flood 2026 — Before / After</title>
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+<header id="topbar">
+  <div class="title-block">
+    <h1>Bhote Koshi–Trishuli Outburst Flood — 26 Aug 2026</h1>
+    <p>Before / after satellite imagery for emergency response &middot; Imagery &copy; Planet Labs PBC (Crisis Response Program, CC-BY-NC-4.0)</p>
+  </div>
+  <div class="mode-switch" role="radiogroup" aria-label="Display mode">
+    <button data-mode="before" title="Show only pre-event imagery">Before</button>
+    <button data-mode="swipe" class="active" title="Drag the divider to compare">Swipe</button>
+    <button data-mode="after" title="Show only post-event imagery">After</button>
+  </div>
+  <button id="btn-about" title="Data caveats and attribution">Caveats &amp; data notes</button>
+</header>
+
+<div id="wrap">
+  <aside id="sidebar">
+    <section class="panel">
+      <h2>Jump to location</h2>
+      <div id="poi-list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>After: source</h2>
+      <label class="row"><input type="checkbox" id="chk-after-ps" checked>
+        PlanetScope &middot; 26 Aug, ~05:00–05:45 UTC (~3.8 m)</label>
+      <label class="row"><input type="checkbox" id="chk-after-sky" checked>
+        SkySat &middot; 27 Aug, 02:00 UTC (<b>0.8 m</b>, Rasuwagadhi + Syabrubesi only)</label>
+      <p class="hint">SkySat is ~5&times; sharper and draws on top where available — zoom into
+      Rasuwagadhi or Syabrubesi to see individual buildings, bridges and road cuts.</p>
+    </section>
+
+    <section class="panel">
+      <h2>Overlays</h2>
+      <label class="row"><input type="checkbox" id="chk-footprints" checked> Scene footprints</label>
+      <label class="row"><input type="checkbox" id="chk-pois" checked> Settlement markers</label>
+      <label class="row"><input type="checkbox" id="chk-basemap" checked> OpenStreetMap basemap</label>
+    </section>
+
+    <section class="panel">
+      <h2>Scenes</h2>
+      <div id="scene-groups"></div>
+    </section>
+
+    <section class="panel warn">
+      <h2>⚠ Read before interpreting</h2>
+      <ul>
+        <li><b>Heavy monsoon cloud.</b> Post-event PlanetScope scenes are 62–93% cloud;
+            much of the loss is thin haze through which terrain remains interpretable,
+            but always cross-check before tasking teams.</li>
+        <li><b>Footprints differ.</b> Some post-event area has no pre-event baseline.</li>
+        <li>13 of 14 PlanetScope scenes are flagged <code>quality: test</code> by Planet.</li>
+        <li>Not a substitute for ground truth — verify road/bridge status locally
+            before routing rescue convoys.</li>
+      </ul>
+    </section>
+  </aside>
+
+  <main id="map-area">
+    <div id="map"></div>
+    <div id="swipe-labels">
+      <span class="tag before-tag">BEFORE &middot; 27 May 2026</span>
+      <span class="tag after-tag">AFTER &middot; 26–27 Aug 2026</span>
+    </div>
+    <div id="swipe-handle" title="Drag to compare before / after"><div class="grip">◄ ►</div></div>
+    <div id="status"></div>
+  </main>
+</div>
+
+<div id="about" class="modal hidden">
+  <div class="modal-card">
+    <button class="modal-close" aria-label="Close">&times;</button>
+    <h2>About this viewer</h2>
+    <p>On 26 August 2026 an outburst flood — preliminarily attributed to an ice and rock
+    avalanche from a glacier in the upper catchment — swept the Bhote Koshi–Trishuli river
+    corridor across the Nepal–China border. This viewer streams Planet satellite imagery
+    published through the <a href="https://www.planet.com/disasterdata/" target="_blank" rel="noopener">Planet
+    Crisis Response Program</a> directly from
+    <a href="https://source.coop/planet/disasterdata/nepal-flash-flood-2026-08-26" target="_blank" rel="noopener">Source
+    Cooperative</a> as Cloud-Optimized GeoTIFFs — no server required.</p>
+    <h3>Imagery</h3>
+    <ul>
+      <li><b>Before:</b> 5 PlanetScope scenes, 27 May 2026 (end of dry season), ~3.8 m,
+          one strip from Trishuli Bazaar north to the Rasuwagadhi border crossing.</li>
+      <li><b>After (PlanetScope):</b> 9 scenes, morning of 26 Aug 2026, ~3.8 m, two swaths.</li>
+      <li><b>After (SkySat):</b> 2 collects, 27 Aug 2026 02:00 UTC, ~0.8 m, over the
+          Rasuwagadhi border crossing and Syabrubesi.</li>
+    </ul>
+    <h3>Caveats</h3>
+    <ul>
+      <li>Cloud cover is significant (monsoon): pre-event 5–52%, post-event PlanetScope
+          62–93%, SkySat ~50%. Much of the obscuration is thin haze.</li>
+      <li>Post-event PlanetScope swaths extend beyond the single pre-event strip, so some
+          post-event area has no baseline; SkySat covers two focal points only.</li>
+      <li>13 of the 14 PlanetScope scenes carry <code>quality_category: test</code> in
+          Planet's Data API; both SkySat collects are <code>standard</code>.</li>
+      <li>Casualty figures in the source dataset are provisional as of 26 Aug 2026.</li>
+    </ul>
+    <h3>License &amp; attribution</h3>
+    <p>Imagery &copy; Planet Labs PBC, licensed
+    <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC-BY-NC-4.0</a>
+    (attribution required, non-commercial use only). Basemap &copy;
+    <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors.</p>
+  </div>
+</div>
+
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/georaster.browser.bundle.min.js"></script>
+<script src="vendor/georaster-layer-for-leaflet.min.js"></script>
+<script src="js/scenes.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
