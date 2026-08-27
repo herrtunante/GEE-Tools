@@ -1,0 +1,38 @@
+{
+ "bounds": [
+  [
+   27.795,
+   84.894
+  ],
+  [
+   28.659,
+   85.648
+  ]
+ ],
+ "res_deg": 0.00022,
+ "pre_scenes": [
+  "20260527_053217_72_254a",
+  "20260527_053219_95_254a",
+  "20260527_053221_96_254a",
+  "20260527_053224_18_254a",
+  "20260527_053226_41_254a"
+ ],
+ "post_scenes": [
+  "20260826_050125_99_255f",
+  "20260826_050128_33_255f",
+  "20260826_050130_66_255f",
+  "20260826_050133_00_255f",
+  "20260826_050135_34_255f",
+  "20260826_054456_67_251f",
+  "20260826_054458_74_251f",
+  "20260826_054500_80_251f",
+  "20260826_054502_86_251f"
+ ],
+ "pre_veg_threshold": 0.3,
+ "moderate_delta": -0.25,
+ "severe_delta": -0.45,
+ "compared_px": 177310,
+ "moderate_px": 33726,
+ "severe_px": 4610,
+ "note": "Mean clear-sky NDVI (UDM2 band 1) per epoch on a ~24 m grid. Pre-event is surface reflectance, post-event TOA radiance: treat as a screening layer, not a measurement."
+}

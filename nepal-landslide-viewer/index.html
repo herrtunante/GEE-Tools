@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nepal Outburst Flood 2026 — Before / After</title>
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="vendor/leaflet-draw/leaflet.draw.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -19,6 +20,7 @@
     <button data-mode="swipe" class="active" title="Drag the divider to compare">Swipe</button>
     <button data-mode="after" title="Show only post-event imagery">After</button>
   </div>
+  <button id="btn-share" title="Copy a link that restores this exact view">🔗 Copy view link</button>
   <button id="btn-about" title="Data caveats and attribution">Caveats &amp; data notes</button>
 </header>
 
@@ -58,9 +60,36 @@
 
     <section class="panel">
       <h2>Overlays</h2>
+      <label class="row"><input type="checkbox" id="chk-change"> Vegetation loss (ΔNDVI)</label>
+      <div class="change-legend">
+        <span><i style="background:rgba(220,30,30,.8)"></i> severe</span>
+        <span><i style="background:rgba(255,120,40,.7)"></i> probable</span>
+      </div>
+      <p class="hint">Screening layer: mean clear-sky NDVI drop between 27 May and 26 Aug on a
+      ~24 m grid, cloud-masked with UDM2. Cross-check against imagery before acting on it.</p>
       <label class="row"><input type="checkbox" id="chk-footprints" checked> Scene footprints</label>
       <label class="row"><input type="checkbox" id="chk-pois" checked> Settlement markers</label>
       <label class="row"><input type="checkbox" id="chk-basemap" checked> OpenStreetMap basemap</label>
+    </section>
+
+    <section class="panel">
+      <h2>Annotations</h2>
+      <p class="hint" style="margin-top:0">Draw markers, lines and areas with the toolbar on the
+      map's left edge. Saved in this browser; exchange them as GeoJSON files.</p>
+      <label class="row">New annotation type:
+        <select id="annot-cat">
+          <option value="hazard">Hazard / damage</option>
+          <option value="blocked">Blocked route</option>
+          <option value="access">Access confirmed</option>
+          <option value="info" selected>Info / other</option>
+        </select>
+      </label>
+      <div class="annot-actions">
+        <button id="btn-annot-export">Export GeoJSON</button>
+        <label class="filebtn">Import<input type="file" id="annot-import" accept=".geojson,.json,application/geo+json"></label>
+        <button id="btn-annot-clear" class="danger">Clear</button>
+      </div>
+      <p class="hint" id="annot-count"></p>
     </section>
 
     <section class="panel">
@@ -145,9 +174,11 @@
 </div>
 
 <script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet-draw/leaflet.draw.js"></script>
 <script src="vendor/georaster.browser.bundle.min.js"></script>
 <script src="vendor/georaster-layer-for-leaflet.min.js"></script>
 <script src="js/scenes.js"></script>
 <script src="js/app.js"></script>
+<script src="js/tools.js"></script>
 </body>
 </html>
