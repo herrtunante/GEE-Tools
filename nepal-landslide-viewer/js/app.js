@@ -16,8 +16,18 @@ var PHASES = {
   post_skysat: { label: 'After — SkySat 0.8 m, 27 Aug 2026', color: '#ffb14d', pane: 'afterHiPane' }
 };
 
-// Rescue-relevant settlements along the corridor (approximate coordinates —
-// verify precise positions against the imagery itself before tasking teams).
+// Band indices within the 4-band analytic assets. All three products are
+// B,G,R,NIR — verified empirically by correlating each pansharpened band
+// against the visual RGB asset (the SkySat file's colorinterp tags wrongly
+// claim R,G,B).
+var BAND_IDX = {
+  pre:         { red: 2, green: 1, blue: 0, nir: 3 },
+  post_ps:     { red: 2, green: 1, blue: 0, nir: 3 },
+  post_skysat: { red: 2, green: 1, blue: 0, nir: 3 }
+};
+
+// Rescue-relevant settlements along the corridor (positions checked against
+// the pre-event imagery; still verify against imagery before tasking teams).
 var POIS = [
   { name: 'Rasuwagadhi',     sub: 'Nepal–China border crossing', lat: 28.2795, lng: 85.3768 },
   { name: 'Timure',          sub: 'village + customs yard',      lat: 28.2545, lng: 85.3640 },
@@ -28,13 +38,14 @@ var POIS = [
 ];
 
 var CORRIDOR_BOUNDS = L.latLngBounds([27.79, 84.89], [28.66, 85.65]);
+var MAX_ZOOM = 22; // overzoom past native resolution for close inspection
 
 /* ------------------------------------------------------------------ map */
 
 var map = L.map('map', {
   zoomControl: true,
   minZoom: 8,
-  maxZoom: 20,
+  maxZoom: MAX_ZOOM,
   center: [28.16, 85.33],
   zoom: 12
 });
@@ -44,13 +55,16 @@ map.createPane('beforePane').style.zIndex = 350;
 map.createPane('afterPane').style.zIndex = 360;
 map.createPane('afterHiPane').style.zIndex = 365;
 
-var basemap = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  maxNativeZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' +
-    ' &middot; Imagery &copy; <a href="https://www.planet.com/disasterdata/">Planet Labs PBC</a> CC-BY-NC-4.0' +
-    ' via <a href="https://source.coop/planet/disasterdata/nepal-flash-flood-2026-08-26">Source Cooperative</a>'
-}).addTo(map);
+function osmLayer() {
+  return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: MAX_ZOOM,
+    maxNativeZoom: 19,
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' +
+      ' &middot; Imagery &copy; <a href="https://www.planet.com/disasterdata/">Planet Labs PBC</a> CC-BY-NC-4.0' +
+      ' via <a href="https://source.coop/planet/disasterdata/nepal-flash-flood-2026-08-26">Source Cooperative</a>'
+  });
+}
+var basemap = osmLayer().addTo(map);
 
 /* -------------------------------------------------------- swipe control */
 
@@ -94,15 +108,112 @@ map.on('move zoom viewreset resize', applyClips);
   handle.addEventListener('pointerup', function () { dragging = false; });
 })();
 
-document.querySelectorAll('.mode-switch button').forEach(function (btn) {
-  btn.addEventListener('click', function () {
-    mode = btn.dataset.mode;
-    document.querySelectorAll('.mode-switch button').forEach(function (b) {
-      b.classList.toggle('active', b === btn);
-    });
-    applyClips();
+function setMode(newMode) {
+  mode = newMode;
+  document.querySelectorAll('.mode-switch button').forEach(function (b) {
+    b.classList.toggle('active', b.dataset.mode === newMode);
   });
+  applyClips();
+  refreshLoupeLayers();
+}
+document.querySelectorAll('.mode-switch button').forEach(function (btn) {
+  btn.addEventListener('click', function () { setMode(btn.dataset.mode); });
 });
+
+/* --------------------------------------------------- band combinations */
+
+var bandMode = 'visual';   // 'visual' | 'falsecolor' | 'ndvi'
+
+// NDVI colour ramp: sediment/water blue-greys and browns through to greens.
+var NDVI_STOPS = [
+  [-1.00, [107, 127, 150]],
+  [-0.05, [138, 122,  99]],
+  [ 0.10, [201, 185, 138]],
+  [ 0.25, [213, 207, 110]],
+  [ 0.45, [143, 191,  90]],
+  [ 0.70, [ 61, 143,  61]],
+  [ 1.00, [ 30, 107,  46]]
+];
+function ndviColor(v) {
+  var i = 1;
+  while (i < NDVI_STOPS.length - 1 && NDVI_STOPS[i][0] < v) i++;
+  var a = NDVI_STOPS[i - 1], b = NDVI_STOPS[i];
+  var t = Math.min(1, Math.max(0, (v - a[0]) / (b[0] - a[0])));
+  var c = [0, 1, 2].map(function (k) { return Math.round(a[1][k] + (b[1][k] - a[1][k]) * t); });
+  return 'rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')';
+}
+
+// Per-scene contrast stretch for the analytic bands, from a coarse overview
+// sample (2nd–98th percentile of non-nodata pixels). Pre-event is surface
+// reflectance and post-event is TOA radiance, so a per-scene stretch is the
+// only way to get comparable-looking false colour.
+var stretchCache = {};
+
+function computeStretch(scene, georaster) {
+  if (stretchCache[scene.id]) return Promise.resolve(stretchCache[scene.id]);
+  var opts = {
+    left: 0, top: 0, right: georaster.width, bottom: georaster.height,
+    width: 128, height: 128, resampleMethod: 'nearest'
+  };
+  return georaster.getValues(opts).then(function (bands) {
+    var stretch = bands.map(function (rows) {
+      var vals = [];
+      for (var r = 0; r < rows.length; r++) {
+        var row = rows[r];
+        for (var c = 0; c < row.length; c++) {
+          if (row[c] > 0) vals.push(row[c]);
+        }
+      }
+      if (!vals.length) return [0, 4000];
+      vals.sort(function (a, b) { return a - b; });
+      var lo = vals[Math.floor(vals.length * 0.02)];
+      var hi = vals[Math.floor(vals.length * 0.98)];
+      if (hi <= lo) hi = lo + 1;
+      return [lo, hi];
+    });
+    stretchCache[scene.id] = stretch;
+    return stretch;
+  }).catch(function (err) {
+    console.warn('stretch sampling failed for ' + scene.id + ', using defaults', err);
+    var fallback = [[0, 4000], [0, 4000], [0, 4000], [0, 5000]];
+    stretchCache[scene.id] = fallback;
+    return fallback;
+  });
+}
+
+function colorFnFor(scene, whichBands, stretch) {
+  var idx = BAND_IDX[scene.phase];
+  if (whichBands === 'visual') {
+    // visual assets are RGBA uint8; alpha 0 marks scene collar
+    return function (v) {
+      if (!v || v[3] === 0 || (v[0] === 0 && v[1] === 0 && v[2] === 0)) return null;
+      return 'rgb(' + v[0] + ',' + v[1] + ',' + v[2] + ')';
+    };
+  }
+  function nodata(v) {
+    return !v || (v[0] === 0 && v[1] === 0 && v[2] === 0 && v[3] === 0);
+  }
+  if (whichBands === 'falsecolor') {
+    var sN = stretch[idx.nir], sR = stretch[idx.red], sG = stretch[idx.green];
+    // gamma-lifted stretch: on cloudy scenes the upper percentile is set by
+    // cloud, so a plain linear stretch crushes terrain into the shadows
+    function sc(val, s) {
+      var t = Math.max(0, Math.min(1, (val - s[0]) / (s[1] - s[0])));
+      return Math.round(Math.pow(t, 0.7) * 255);
+    }
+    return function (v) {
+      if (nodata(v)) return null;
+      return 'rgb(' + sc(v[idx.nir], sN) + ',' + sc(v[idx.red], sR) + ',' + sc(v[idx.green], sG) + ')';
+    };
+  }
+  // ndvi
+  return function (v) {
+    if (nodata(v)) return null;
+    var nir = v[idx.nir], red = v[idx.red];
+    if (nir + red <= 0) return null;
+    return ndviColor((nir - red) / (nir + red));
+  };
+}
 
 /* ------------------------------------------------------- raster layers */
 
@@ -116,45 +227,218 @@ function setStatus() {
     : '';
 }
 
-var rasterLayers = {}; // scene id -> GeoRasterLayer (or Promise placeholder)
+var georasterCache = {};   // url -> Promise<georaster>
+function getGeoraster(url) {
+  if (!georasterCache[url]) georasterCache[url] = parseGeoraster(url);
+  return georasterCache[url];
+}
 
-function sceneLayer(scene) {
-  if (rasterLayers[scene.id]) return Promise.resolve(rasterLayers[scene.id]);
+// layer caches: one per (scene, asset) for the main map and the loupe — a
+// Leaflet layer instance can only live on one map at a time. False colour
+// and NDVI share the analytic layer: switching between them only recolours
+// the already-fetched tiles via updateColors(), no re-streaming.
+var rasterLayers = {};
+var loupeRasterLayers = {};
+
+function assetFor(whichBands) { return whichBands === 'visual' ? 'visual' : 'analytic'; }
+
+function buildLayer(scene, whichBands, cache, pane) {
+  var asset = assetFor(whichBands);
+  cache[scene.id] = cache[scene.id] || {};
+  var existing = cache[scene.id][asset];
+  if (existing) {
+    return existing.then ? existing : Promise.resolve(existing);
+  }
+  var url = asset === 'visual' ? scene.visual : scene.analytic;
   pendingLoads++; setStatus();
-  return parseGeoraster(scene.visual)
+  var promise = getGeoraster(url)
     .then(function (georaster) {
-      var layer = new GeoRasterLayer({
-        georaster: georaster,
-        pane: PHASES[scene.phase].pane,
-        resolution: scene.phase === 'post_skysat' ? 256 : 128,
-        pixelValuesToColorFn: function (v) {
-          // visual assets are RGBA uint8; alpha 0 marks scene collar
-          if (!v || v[3] === 0 || (v[0] === 0 && v[1] === 0 && v[2] === 0)) return null;
-          return 'rgb(' + v[0] + ',' + v[1] + ',' + v[2] + ')';
-        }
+      // stretch stats are needed for false colour; compute them for any
+      // analytic layer so later recolours never have to wait on the network
+      var needStretch = asset === 'analytic'
+        ? computeStretch(scene, georaster)
+        : Promise.resolve(null);
+      return needStretch.then(function (stretch) {
+        // analytic (uint16) reads are heavier than the 8-bit visual COGs, so
+        // sample them at a coarser per-tile resolution to keep panning fluid
+        var res = asset === 'visual'
+          ? (scene.phase === 'post_skysat' ? 256 : 128)
+          : (scene.phase === 'post_skysat' ? 128 : 64);
+        var layer = new GeoRasterLayer({
+          georaster: georaster,
+          pane: pane,
+          resolution: res,
+          pixelValuesToColorFn: colorFnFor(scene, whichBands, stretch)
+        });
+        layer._bands = whichBands;
+        cache[scene.id][asset] = layer;
+        return layer;
       });
-      rasterLayers[scene.id] = layer;
-      return layer;
     })
     .catch(function (err) {
       console.error('Failed to open ' + scene.id, err);
       statusEl.textContent = 'Could not open ' + scene.id + ' — check network access to s3.us-west-2.amazonaws.com';
+      cache[scene.id][asset] = null;
       return null;
     })
     .finally(function () { pendingLoads--; setStatus(); });
+  cache[scene.id][asset] = promise;
+  return promise;
+}
+
+function retargetLayer(scene, layer, whichBands) {
+  // recolour an analytic layer in place when flipping falsecolor <-> ndvi
+  if (layer._bands === whichBands) return;
+  layer._bands = whichBands;
+  layer.updateColors(colorFnFor(scene, whichBands, stretchCache[scene.id]));
+}
+
+function showScene(scene) {
+  var wantedBands = bandMode;
+  // drop a different-asset representation right away so the map never mixes
+  // true colour with analytic renders while the new layers stream in
+  if (scene._activeLayer && assetFor(scene._activeBands) !== assetFor(wantedBands) &&
+      map.hasLayer(scene._activeLayer)) {
+    map.removeLayer(scene._activeLayer);
+    scene._activeLayer = null;
+  }
+  buildLayer(scene, wantedBands, rasterLayers, PHASES[scene.phase].pane).then(function (layer) {
+    if (!layer) return;
+    // still wanted, and the band mode hasn't changed while loading?
+    if (scene._wanted && bandMode === wantedBands) {
+      if (scene._activeLayer && scene._activeLayer !== layer && map.hasLayer(scene._activeLayer)) {
+        map.removeLayer(scene._activeLayer);
+      }
+      retargetLayer(scene, layer, wantedBands);
+      scene._activeLayer = layer;
+      scene._activeBands = wantedBands;
+      if (!map.hasLayer(layer)) layer.addTo(map);
+      applyClips();
+    }
+  });
 }
 
 function setSceneVisible(scene, on) {
   scene._wanted = on;
   if (on) {
-    sceneLayer(scene).then(function (layer) {
-      if (layer && scene._wanted && !map.hasLayer(layer)) layer.addTo(map);
-      applyClips();
-    });
-  } else if (rasterLayers[scene.id] && map.hasLayer(rasterLayers[scene.id])) {
-    map.removeLayer(rasterLayers[scene.id]);
+    showScene(scene);
+  } else if (scene._activeLayer && map.hasLayer(scene._activeLayer)) {
+    map.removeLayer(scene._activeLayer);
+  }
+  refreshLoupeLayers();
+}
+
+function setBandMode(newMode) {
+  bandMode = newMode;
+  document.querySelectorAll('input[name=bands]').forEach(function (r) { r.checked = r.value === newMode; });
+  document.getElementById('ndvi-legend').style.display = newMode === 'ndvi' ? '' : 'none';
+  SCENES.forEach(function (scene) {
+    if (scene._wanted) {
+      showScene(scene);
+    } else if (scene._activeLayer && map.hasLayer(scene._activeLayer)) {
+      map.removeLayer(scene._activeLayer);
+    }
+  });
+  refreshLoupeLayers();
+}
+document.querySelectorAll('input[name=bands]').forEach(function (r) {
+  r.addEventListener('change', function () { if (r.checked) setBandMode(r.value); });
+});
+
+/* ------------------------------------------------------- loupe (lens) */
+
+// The loupe follows the cursor and shows the OTHER epoch, magnified: while
+// looking at post-event imagery it reveals what stood there before, and
+// vice versa.
+var loupeOn = false;
+var loupeMap = null;
+var loupeEl = document.getElementById('loupe');
+var loupeLabel = document.getElementById('loupe-label');
+var LOUPE_ZOOM_BOOST = 2;
+
+function loupeEpoch() { return mode === 'before' ? 'after' : 'before'; }
+
+function ensureLoupeMap() {
+  if (loupeMap) return;
+  loupeMap = L.map('loupe-map', {
+    zoomControl: false, attributionControl: false,
+    dragging: false, scrollWheelZoom: false, doubleClickZoom: false,
+    boxZoom: false, keyboard: false, touchZoom: false,
+    fadeAnimation: false, zoomAnimation: false, markerZoomAnimation: false, inertia: false,
+    minZoom: 8, maxZoom: MAX_ZOOM,
+    center: map.getCenter(), zoom: map.getZoom()
+  });
+  loupeMap.createPane('beforePane').style.zIndex = 350;
+  loupeMap.createPane('afterPane').style.zIndex = 360;
+  loupeMap.createPane('afterHiPane').style.zIndex = 365;
+  osmLayer().addTo(loupeMap);
+}
+
+function refreshLoupeLayers() {
+  if (!loupeOn || !loupeMap) return;
+  var epoch = loupeEpoch();
+  var phases = epoch === 'before' ? ['pre'] : ['post_ps', 'post_skysat'];
+  loupeLabel.textContent = epoch === 'before' ? 'BEFORE · 27 MAY' : 'AFTER · 26–27 AUG';
+  loupeLabel.className = epoch === 'before' ? 'lbl-before' : 'lbl-after';
+  var wantedBands = bandMode;
+  SCENES.forEach(function (scene) {
+    var wanted = scene._wanted && phases.indexOf(scene.phase) !== -1;
+    if (wanted) {
+      buildLayer(scene, wantedBands, loupeRasterLayers, PHASES[scene.phase].pane).then(function (layer) {
+        if (!layer) return;
+        var stillWanted = loupeOn && bandMode === wantedBands &&
+          scene._wanted && (loupeEpoch() === 'before' ? ['pre'] : ['post_ps', 'post_skysat']).indexOf(scene.phase) !== -1;
+        if (scene._loupeLayer && scene._loupeLayer !== layer && loupeMap.hasLayer(scene._loupeLayer)) {
+          loupeMap.removeLayer(scene._loupeLayer);
+        }
+        if (stillWanted) {
+          retargetLayer(scene, layer, wantedBands);
+          scene._loupeLayer = layer;
+          if (!loupeMap.hasLayer(layer)) layer.addTo(loupeMap);
+        }
+      });
+    } else if (scene._loupeLayer && loupeMap.hasLayer(scene._loupeLayer)) {
+      loupeMap.removeLayer(scene._loupeLayer);
+    }
+  });
+}
+
+var loupeRaf = null;
+function moveLoupe(e) {
+  if (!loupeOn) return;
+  loupeEl.style.display = 'block';
+  var pt = e.containerPoint;
+  loupeEl.style.left = (pt.x - loupeEl.offsetWidth / 2) + 'px';
+  loupeEl.style.top = (pt.y - loupeEl.offsetHeight / 2) + 'px';
+  if (loupeRaf) return;
+  loupeRaf = requestAnimationFrame(function () {
+    loupeRaf = null;
+    if (loupeMap) {
+      loupeMap.invalidateSize({ animate: false });
+      loupeMap.setView(e.latlng, Math.min(MAX_ZOOM, map.getZoom() + LOUPE_ZOOM_BOOST), { animate: false });
+    }
+  });
+}
+
+function setLoupe(on) {
+  loupeOn = on;
+  document.getElementById('btn-loupe').classList.toggle('active', on);
+  if (on) {
+    ensureLoupeMap();
+    refreshLoupeLayers();
+  } else {
+    loupeEl.style.display = 'none';
   }
 }
+map.on('mousemove', moveLoupe);
+map.on('mouseout', function () { loupeEl.style.display = 'none'; });
+document.getElementById('btn-loupe').addEventListener('click', function () { setLoupe(!loupeOn); });
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'l' || e.key === 'L') {
+    if (/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+    setLoupe(!loupeOn);
+  }
+});
 
 /* ---------------------------------------------------------- footprints */
 
