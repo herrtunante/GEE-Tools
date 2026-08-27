@@ -19,6 +19,20 @@ required**. Any static host works.
   SkySat (~0.8 m, next morning) over the Rasuwagadhi border crossing and
   Syabrubesi; SkySat draws on top where available and resolves individual
   buildings, bridges and road cuts.
+- **Band combinations** — true colour (RGB `visual` assets), false colour
+  NIR·R·G and NDVI, both streamed from the 4-band analytic assets
+  (`analytic_sr` pre-event, `analytic` post-event, `pansharpened` SkySat)
+  with a per-scene 2–98% percentile stretch (gamma-lifted so terrain stays
+  readable under the monsoon cloud) sampled from the COG overviews. False
+  colour and NDVI share one layer per scene, so flipping between them
+  recolours already-fetched tiles instantly. All three products are
+  B,G,R,NIR — verified empirically against the visual assets (the SkySat
+  file's colorinterp tags wrongly claim R,G,B).
+- **Comparison loupe** (button or `L`) — a magnifier that follows the cursor
+  and shows the *other* epoch at +2 zoom: hover post-event debris to see
+  what stood there before, and vice versa.
+- **Deep zoom** — the map overzooms to z22 so the 0.5 m/px SkySat
+  pansharpened detail can be inspected at building scale.
 - **Rescue-relevant landmarks** — one-click zoom to Rasuwagadhi, Timure,
   Syabrubesi, Dhunche, Betrawati and Trishuli Bazaar.
 - **Scene footprints & metadata** — acquisition time, cloud cover, GSD and
@@ -62,6 +76,10 @@ cloud cover, asset URLs). Regenerate it against the live catalog if the
 dataset is updated.
 
 ### Interpretation caveats (from the dataset README)
+
+- Pre-event analytic is surface reflectance while post-event is
+  top-of-atmosphere radiance: in false colour and NDVI, compare spatial
+  patterns across epochs, not absolute values.
 
 - Post-event PlanetScope scenes are 62–93% cloud (monsoon); much of the loss
   is thin haze through which terrain remains interpretable.

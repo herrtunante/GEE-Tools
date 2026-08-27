@@ -150,6 +150,54 @@ body {
 .before-tag { left: 10px; background: rgba(46, 204, 113, .85); }
 .after-tag { right: 10px; background: rgba(255, 93, 77, .85); }
 
+.bandnote { display: block; font-size: 10.5px; color: var(--muted); margin-left: 20px; }
+
+#ndvi-legend { margin: 8px 0 0 20px; max-width: 180px; }
+.ndvi-bar {
+  height: 10px; border-radius: 3px;
+  background: linear-gradient(to right,
+    #6b7f96 0%, #8a7a63 24%, #c9b98a 30%, #d5cf6e 38%, #8fbf5a 48%, #3d8f3d 61%, #1e6b2e 100%);
+}
+.ndvi-ticks { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+
+#btn-loupe {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 900;
+  background: rgba(16, 21, 28, .85);
+  border: 1px solid #3c4b63;
+  color: var(--text);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 16px;
+  cursor: pointer;
+}
+#btn-loupe:hover { border-color: var(--accent); }
+#btn-loupe.active { background: var(--accent); color: #06121f; border-color: var(--accent); font-weight: 600; }
+
+#loupe {
+  display: none;
+  position: absolute;
+  width: 240px; height: 240px;
+  border-radius: 50%;
+  border: 3px solid #fff;
+  box-shadow: 0 2px 14px rgba(0,0,0,.7);
+  overflow: hidden;
+  z-index: 950;
+  pointer-events: none;
+}
+#loupe-map { position: absolute; inset: 0; background: #0a0e13; }
+#loupe-label {
+  position: absolute;
+  bottom: 18px; left: 50%; transform: translateX(-50%);
+  z-index: 960;
+  font-size: 10px; font-weight: 700; letter-spacing: .05em;
+  color: #fff; padding: 2px 8px; border-radius: 3px;
+  white-space: nowrap;
+  text-shadow: 0 1px 2px rgba(0,0,0,.7);
+}
+#loupe-label.lbl-before { background: rgba(46, 204, 113, .85); }
+#loupe-label.lbl-after { background: rgba(255, 93, 77, .85); }
+
 #status {
   position: absolute; left: 10px; bottom: 10px; z-index: 900;
   background: rgba(16, 21, 28, .85);

@@ -40,6 +40,23 @@
     </section>
 
     <section class="panel">
+      <h2>Band combination</h2>
+      <label class="row"><input type="radio" name="bands" value="visual" checked>
+        True colour <span class="bandnote">RGB visual, colour-corrected</span></label>
+      <label class="row"><input type="radio" name="bands" value="falsecolor">
+        False colour <span class="bandnote">NIR·R·G — vegetation red, water/sediment dark</span></label>
+      <label class="row"><input type="radio" name="bands" value="ndvi">
+        NDVI <span class="bandnote">vegetation index — debris tracks show as sudden loss</span></label>
+      <div id="ndvi-legend" style="display:none">
+        <div class="ndvi-bar"></div>
+        <div class="ndvi-ticks"><span>-1</span><span>0</span><span>+1</span></div>
+      </div>
+      <p class="hint">False colour and NDVI stream the 4-band analytic assets with a per-scene
+      2–98% stretch. Pre-event is surface reflectance, post-event is TOA radiance —
+      compare patterns, not absolute values, across epochs.</p>
+    </section>
+
+    <section class="panel">
       <h2>Overlays</h2>
       <label class="row"><input type="checkbox" id="chk-footprints" checked> Scene footprints</label>
       <label class="row"><input type="checkbox" id="chk-pois" checked> Settlement markers</label>
@@ -72,6 +89,11 @@
       <span class="tag after-tag">AFTER &middot; 26–27 Aug 2026</span>
     </div>
     <div id="swipe-handle" title="Drag to compare before / after"><div class="grip">◄ ►</div></div>
+    <button id="btn-loupe" title="Comparison loupe (L) — magnifies the other epoch under your cursor">🔍 Loupe</button>
+    <div id="loupe">
+      <div id="loupe-map"></div>
+      <span id="loupe-label"></span>
+    </div>
     <div id="status"></div>
   </main>
 </div>
@@ -91,6 +113,15 @@
     <ul>
       <li><b>Before:</b> 5 PlanetScope scenes, 27 May 2026 (end of dry season), ~3.8 m,
           one strip from Trishuli Bazaar north to the Rasuwagadhi border crossing.</li>
+      <li><b>Band combinations:</b> true colour uses the RGB <code>visual</code> assets;
+          false colour (NIR·R·G) and NDVI stream the 4-band analytic assets
+          (<code>analytic_sr</code> pre-event, <code>analytic</code> post-event,
+          <code>pansharpened</code> SkySat) with a per-scene percentile stretch.
+          Because pre-event is surface reflectance and post-event is top-of-atmosphere
+          radiance, compare spatial patterns across epochs, not absolute values.</li>
+      <li><b>Loupe (press L):</b> a magnifier that follows the cursor and shows the
+          <i>other</i> epoch at +2 zoom — hover post-event debris to see what stood
+          there before.</li>
       <li><b>After (PlanetScope):</b> 9 scenes, morning of 26 Aug 2026, ~3.8 m, two swaths.</li>
       <li><b>After (SkySat):</b> 2 collects, 27 Aug 2026 02:00 UTC, ~0.8 m, over the
           Rasuwagadhi border crossing and Syabrubesi.</li>
