@@ -4,6 +4,9 @@ Static web viewer comparing satellite imagery from before and after the
 26 August 2026 Bhote Koshi–Trishuli outburst flood (Nepal–China border),
 built to help direct emergency rescue efforts.
 
+**Live site: <https://herrtunante.github.io/GEE-Tools/>** (served from the
+`gh-pages` branch — see [Deploying](#deploying) below).
+
 It streams Planet Crisis Response **Cloud-Optimized GeoTIFFs** directly from
 [Source Cooperative](https://source.coop/planet/disasterdata/nepal-flash-flood-2026-08-26)'s
 AWS Open Data mirror using HTTP range requests — the browser only downloads
@@ -52,8 +55,19 @@ python3 -m http.server 8000
 ```
 
 Opening `index.html` via `file://` will not work (range-request fetches
-require an http(s) origin). For GitHub Pages, publish the repository and
-point Pages at this folder (or copy it to the Pages root).
+require an http(s) origin).
+
+## Deploying
+
+The site is published on GitHub Pages from the `gh-pages` branch, which
+holds this folder's contents at its root. To redeploy after changing the
+viewer, regenerate that branch from the development branch:
+
+```bash
+git subtree split --prefix nepal-landslide-viewer -b gh-pages-build
+git push -f origin gh-pages-build:gh-pages
+git branch -D gh-pages-build
+```
 
 Internet access to `s3.us-west-2.amazonaws.com` (imagery) and
 `tile.openstreetmap.org` (basemap, optional) is required at view time.
