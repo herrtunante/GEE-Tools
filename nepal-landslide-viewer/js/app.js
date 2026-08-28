@@ -10,11 +10,24 @@
 
 /* ---------------------------------------------------------------- config */
 
+// Epoch/sensor groups. Pane z-order stacks sharper or newer imagery on
+// top within each epoch; every *Pane listed under before/after is clipped
+// by the swipe divider.
 var PHASES = {
-  pre:         { label: 'Before — PlanetScope, 27 May 2026', color: '#2ecc71', pane: 'beforePane' },
-  post_ps:     { label: 'After — PlanetScope, 26 Aug 2026',  color: '#ff5d4d', pane: 'afterPane' },
-  post_skysat: { label: 'After — SkySat 0.8 m, 27 Aug 2026', color: '#ffb14d', pane: 'afterHiPane' }
+  pre:          { label: 'Before — PlanetScope, 27 May 2026',        color: '#2ecc71', pane: 'beforePane',   epoch: 'before' },
+  pre_vantor:   { label: 'Before — Vantor hi-res, 2021–2024',        color: '#35b8b0', pane: 'beforeHiPane', epoch: 'before' },
+  post_ps:      { label: 'After — PlanetScope, 26 Aug 2026',         color: '#ff5d4d', pane: 'afterPane',    epoch: 'after' },
+  post_skysat:  { label: 'After — SkySat 0.8 m, 27 Aug 2026',        color: '#ffb14d', pane: 'afterHiPane',  epoch: 'after' },
+  post_pelican: { label: 'After — Pelican 0.55 m, 27 Aug 2026',      color: '#c77dff', pane: 'afterHi2Pane', epoch: 'after' },
+  post_vantor:  { label: 'After — Vantor Legion ~0.5 m, 27–28 Aug',  color: '#ff6fb5', pane: 'afterHi3Pane', epoch: 'after' }
 };
+var PANE_Z = {
+  beforePane: 350, beforeHiPane: 355,
+  afterPane: 360, afterHiPane: 365, afterHi2Pane: 366, afterHi3Pane: 367
+};
+function phasesOf(epoch) {
+  return Object.keys(PHASES).filter(function (k) { return PHASES[k].epoch === epoch; });
+}
 
 // Band indices within the 4-band analytic assets. All three products are
 // B,G,R,NIR — verified empirically by correlating each pansharpened band
@@ -51,17 +64,15 @@ var map = L.map('map', {
 });
 L.control.scale({ imperial: false }).addTo(map);
 
-map.createPane('beforePane').style.zIndex = 350;
-map.createPane('afterPane').style.zIndex = 360;
-map.createPane('afterHiPane').style.zIndex = 365;
+Object.keys(PANE_Z).forEach(function (p) { map.createPane(p).style.zIndex = PANE_Z[p]; });
 
 function osmLayer() {
   return L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: MAX_ZOOM,
     maxNativeZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' +
-      ' &middot; Imagery &copy; <a href="https://www.planet.com/disasterdata/">Planet Labs PBC</a> CC-BY-NC-4.0' +
-      ' via <a href="https://source.coop/planet/disasterdata/nepal-flash-flood-2026-08-26">Source Cooperative</a>'
+      ' &middot; Imagery &copy; <a href="https://www.planet.com/disasterdata/">Planet Labs PBC</a>' +
+      ' &amp; &copy; Vantor (Open Data Program), CC-BY-NC-4.0'
   });
 }
 var basemap = osmLayer().addTo(map);
@@ -80,9 +91,9 @@ function applyClips() {
   var beforeClip = 'rect(' + nw.y + 'px ' + clipX + 'px ' + se.y + 'px ' + nw.x + 'px)';
   var afterClip  = 'rect(' + nw.y + 'px ' + se.x  + 'px ' + se.y + 'px ' + clipX + 'px)';
 
-  map.getPane('beforePane').style.clip = beforeClip;
-  map.getPane('afterPane').style.clip = afterClip;
-  map.getPane('afterHiPane').style.clip = afterClip;
+  Object.keys(PANE_Z).forEach(function (p) {
+    map.getPane(p).style.clip = p.indexOf('before') === 0 ? beforeClip : afterClip;
+  });
 
   handle.style.display = (mode === 'swipe') ? '' : 'none';
   handle.style.left = (swipeFrac * 100) + '%';
@@ -184,6 +195,18 @@ function computeStretch(scene, georaster) {
 function colorFnFor(scene, whichBands, stretch) {
   var idx = BAND_IDX[scene.phase];
   if (whichBands === 'visual') {
+    if (scene.ycbcr) {
+      // YCbCr-JPEG COGs (Vantor): geotiff.js returns raw Y/Cb/Cr samples
+      return function (v) {
+        if (!v || (v[0] === 0 && v[1] === 0 && v[2] === 0)) return null;
+        var y = v[0], cb = v[1] - 128, cr = v[2] - 128;
+        var r = Math.max(0, Math.min(255, Math.round(y + 1.402 * cr)));
+        var g = Math.max(0, Math.min(255, Math.round(y - 0.344136 * cb - 0.714136 * cr)));
+        var b = Math.max(0, Math.min(255, Math.round(y + 1.772 * cb)));
+        if (r === 0 && g === 0 && b === 0) return null;
+        return 'rgb(' + r + ',' + g + ',' + b + ')';
+      };
+    }
     // visual assets are RGBA uint8; alpha 0 marks scene collar
     return function (v) {
       if (!v || v[3] === 0 || (v[0] === 0 && v[1] === 0 && v[2] === 0)) return null;
@@ -240,10 +263,15 @@ function getGeoraster(url) {
 var rasterLayers = {};
 var loupeRasterLayers = {};
 
-function assetFor(whichBands) { return whichBands === 'visual' ? 'visual' : 'analytic'; }
+// Scenes without a 4-band analytic asset (Pelican, Vantor) keep their
+// visual rendering in false colour / NDVI mode rather than disappearing.
+function assetFor(scene, whichBands) {
+  return whichBands === 'visual' || !scene.analytic ? 'visual' : 'analytic';
+}
 
 function buildLayer(scene, whichBands, cache, pane) {
-  var asset = assetFor(whichBands);
+  var asset = assetFor(scene, whichBands);
+  if (asset === 'visual') whichBands = 'visual';
   cache[scene.id] = cache[scene.id] || {};
   var existing = cache[scene.id][asset];
   if (existing) {
@@ -261,9 +289,8 @@ function buildLayer(scene, whichBands, cache, pane) {
       return needStretch.then(function (stretch) {
         // analytic (uint16) reads are heavier than the 8-bit visual COGs, so
         // sample them at a coarser per-tile resolution to keep panning fluid
-        var res = asset === 'visual'
-          ? (scene.phase === 'post_skysat' ? 256 : 128)
-          : (scene.phase === 'post_skysat' ? 128 : 64);
+        var hires = (scene.gsd || 4) < 2;
+        var res = asset === 'visual' ? (hires ? 256 : 128) : (hires ? 128 : 64);
         var layer = new GeoRasterLayer({
           georaster: georaster,
           pane: pane,
@@ -288,6 +315,7 @@ function buildLayer(scene, whichBands, cache, pane) {
 
 function retargetLayer(scene, layer, whichBands) {
   // recolour an analytic layer in place when flipping falsecolor <-> ndvi
+  if (assetFor(scene, whichBands) === 'visual') whichBands = 'visual';
   if (layer._bands === whichBands) return;
   layer._bands = whichBands;
   layer.updateColors(colorFnFor(scene, whichBands, stretchCache[scene.id]));
@@ -297,7 +325,7 @@ function showScene(scene) {
   var wantedBands = bandMode;
   // drop a different-asset representation right away so the map never mixes
   // true colour with analytic renders while the new layers stream in
-  if (scene._activeLayer && assetFor(scene._activeBands) !== assetFor(wantedBands) &&
+  if (scene._activeLayer && assetFor(scene, scene._activeBands) !== assetFor(scene, wantedBands) &&
       map.hasLayer(scene._activeLayer)) {
     map.removeLayer(scene._activeLayer);
     scene._activeLayer = null;
@@ -368,17 +396,15 @@ function ensureLoupeMap() {
     minZoom: 8, maxZoom: MAX_ZOOM,
     center: map.getCenter(), zoom: map.getZoom()
   });
-  loupeMap.createPane('beforePane').style.zIndex = 350;
-  loupeMap.createPane('afterPane').style.zIndex = 360;
-  loupeMap.createPane('afterHiPane').style.zIndex = 365;
+  Object.keys(PANE_Z).forEach(function (p) { loupeMap.createPane(p).style.zIndex = PANE_Z[p]; });
   osmLayer().addTo(loupeMap);
 }
 
 function refreshLoupeLayers() {
   if (!loupeOn || !loupeMap) return;
   var epoch = loupeEpoch();
-  var phases = epoch === 'before' ? ['pre'] : ['post_ps', 'post_skysat'];
-  loupeLabel.textContent = epoch === 'before' ? 'BEFORE · 27 MAY' : 'AFTER · 26–27 AUG';
+  var phases = phasesOf(epoch);
+  loupeLabel.textContent = epoch === 'before' ? 'BEFORE THE FLOOD' : 'AFTER · 26–28 AUG';
   loupeLabel.className = epoch === 'before' ? 'lbl-before' : 'lbl-after';
   var wantedBands = bandMode;
   SCENES.forEach(function (scene) {
@@ -387,7 +413,7 @@ function refreshLoupeLayers() {
       buildLayer(scene, wantedBands, loupeRasterLayers, PHASES[scene.phase].pane).then(function (layer) {
         if (!layer) return;
         var stillWanted = loupeOn && bandMode === wantedBands &&
-          scene._wanted && (loupeEpoch() === 'before' ? ['pre'] : ['post_ps', 'post_skysat']).indexOf(scene.phase) !== -1;
+          scene._wanted && phasesOf(loupeEpoch()).indexOf(scene.phase) !== -1;
         if (scene._loupeLayer && scene._loupeLayer !== layer && loupeMap.hasLayer(scene._loupeLayer)) {
           loupeMap.removeLayer(scene._loupeLayer);
         }
@@ -488,18 +514,24 @@ Object.keys(PHASES).forEach(function (phase) {
   var ph = PHASES[phase];
   var wrap = document.createElement('div');
   wrap.className = 'scene-group';
+  wrap.dataset.phase = phase;
   wrap.innerHTML = '<h3><span class="dot" style="background:' + ph.color + '"></span>' + ph.label + '</h3>';
   SCENES.filter(function (s) { return s.phase === phase; }).forEach(function (scene) {
     var row = document.createElement('div');
     row.className = 'scene';
     var badCloud = scene.cloud >= 60;
+    // groups whose scenes share one date show the time; multi-year groups
+    // (the Vantor pre-event baseline) show the date instead
+    var when = scene.phase === 'pre_vantor'
+      ? scene.datetime.slice(0, 10)
+      : scene.datetime.slice(11, 16) + ' UTC';
     row.innerHTML =
       '<input type="checkbox" checked>' +
       '<img loading="lazy" src="' + scene.thumbnail + '" alt="">' +
       '<div class="meta">' +
-        '<div>' + scene.datetime.slice(11, 16) + ' UTC ' +
+        '<div>' + when + ' ' +
           '<span class="cloudbadge' + (badCloud ? ' bad' : '') + '">' + scene.cloud + '% cloud</span></div>' +
-        '<div class="sid">' + scene.id + '</div>' +
+        '<div class="sid">' + scene.id + ' · ' + (scene.gsd || '?') + ' m</div>' +
       '</div>' +
       '<button class="zoom-btn" title="Zoom to this scene">⌖</button>';
     row.querySelector('input').addEventListener('change', function (e) {
@@ -525,14 +557,25 @@ bindToggle('chk-basemap', function (on) { on ? basemap.addTo(map) : map.removeLa
 function bulkToggle(phase, on) {
   SCENES.filter(function (s) { return s.phase === phase; }).forEach(function (s) { setSceneVisible(s, on); });
   // keep the per-scene checkboxes in sync
-  document.querySelectorAll('.scene-group').forEach(function (g) {
-    if (g.querySelector('h3').textContent.indexOf(PHASES[phase].label) !== -1) {
-      g.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = on; });
-    }
-  });
+  var g = document.querySelector('.scene-group[data-phase="' + phase + '"]');
+  if (g) g.querySelectorAll('input[type=checkbox]').forEach(function (c) { c.checked = on; });
 }
-bindToggle('chk-after-ps', function (on) { bulkToggle('post_ps', on); });
-bindToggle('chk-after-sky', function (on) { bulkToggle('post_skysat', on); });
+
+// one master toggle per epoch/sensor group
+var sourceToggles = document.getElementById('source-toggles');
+Object.keys(PHASES).forEach(function (phase) {
+  var ph = PHASES[phase];
+  var n = SCENES.filter(function (s) { return s.phase === phase; }).length;
+  if (!n) return;
+  var lab = document.createElement('label');
+  lab.className = 'row';
+  lab.innerHTML = '<input type="checkbox" checked> <span class="dot" style="background:' +
+    ph.color + '"></span>' + ph.label + ' <span class="srcn">(' + n + ')</span>';
+  lab.querySelector('input').addEventListener('change', function (e) {
+    bulkToggle(phase, e.target.checked);
+  });
+  sourceToggles.appendChild(lab);
+});
 
 /* --------------------------------------------------------------- modal */
 

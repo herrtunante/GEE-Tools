@@ -52,7 +52,7 @@ SEVERE = -0.45
 
 def scene_ndvi(phase, sid):
     """Return (ndvi, clear) reprojected onto the target grid, or None."""
-    aname = "analytic_sr" if phase == "pre-event/2026-05-27" else "analytic"
+    aname = "analytic_sr" if phase == "pre-event/planetscope-2026-05-27" else "analytic"
     aurl = f"{BASE}/{phase}/items/{sid}/{sid}_{aname}.tif"
     murl = f"{BASE}/{phase}/items/{sid}/{sid}_udm2.tif"
     with rasterio.open(aurl) as ds:
@@ -96,9 +96,9 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
 
     print("pre-event NDVI")
-    pre = epoch_mean("pre-event/2026-05-27", PRE)
+    pre = epoch_mean("pre-event/planetscope-2026-05-27", PRE)
     print("post-event NDVI")
-    post = epoch_mean("post-event/2026-08-26", POST)
+    post = epoch_mean("post-event/planetscope-2026-08-26", POST)
 
     both = ~np.isnan(pre) & ~np.isnan(post)
     delta = post - pre
