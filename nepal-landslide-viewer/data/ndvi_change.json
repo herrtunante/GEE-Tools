@@ -26,13 +26,18 @@
   "20260826_054456_67_251f",
   "20260826_054458_74_251f",
   "20260826_054500_80_251f",
-  "20260826_054502_86_251f"
+  "20260826_054502_86_251f",
+  "20260828_045742_14_2544",
+  "20260828_045744_48_2544",
+  "20260828_045746_81_2544",
+  "20260828_045749_15_2544",
+  "20260828_050143_19_2520"
  ],
  "pre_veg_threshold": 0.3,
  "moderate_delta": -0.25,
  "severe_delta": -0.45,
- "compared_px": 177310,
- "moderate_px": 33726,
- "severe_px": 4610,
+ "compared_px": 599314,
+ "moderate_px": 95019,
+ "severe_px": 12563,
  "note": "Mean clear-sky NDVI (UDM2 band 1) per epoch on a ~24 m grid. Pre-event is surface reflectance, post-event TOA radiance: treat as a screening layer, not a measurement."
 }

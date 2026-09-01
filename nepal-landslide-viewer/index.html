@@ -34,9 +34,10 @@
     <section class="panel">
       <h2>Imagery sources</h2>
       <div id="source-toggles"></div>
-      <p class="hint">Sharper and newer imagery draws on top within each epoch. The Vantor
-      hi-res baseline (WorldView, 2021–24) and Legion collects (27–28 Aug, newest available)
-      resolve individual buildings; Pelican covers the Rasuwagadhi–Dhunche corridor at 0.55 m.</p>
+      <p class="hint">Sharper imagery draws on top within each epoch, so sub-metre detail is
+      never hidden by a wide coarse swath. Both epochs have sub-metre coverage: the Vantor
+      baseline reaches 0.35 m (cloud-free, Feb 2026) and the newest Vantor Legion collects
+      reach 0.4 m. Toggle a group off to see what lies beneath it.</p>
     </section>
 
     <section class="panel">
@@ -139,26 +140,36 @@
     Cooperative</a> as Cloud-Optimized GeoTIFFs — no server required.</p>
     <h3>Imagery</h3>
     <ul>
-      <li><b>Before:</b> 5 PlanetScope scenes, 27 May 2026 (end of dry season), ~3.8 m,
+      <li><b>Before (PlanetScope):</b> 5 scenes, 27 May 2026 (end of dry season), ~3.7 m,
           one strip from Trishuli Bazaar north to the Rasuwagadhi border crossing.</li>
+      <li><b>Before (Vantor):</b> 4 WorldView scenes, 2021–2026, 0.35–0.58 m — including a
+          <b>cloud-free 0.35 m collect from 5 Feb 2026</b>, six months before the flood.</li>
+      <li><b>After (PlanetScope):</b> 14 scenes, 26 and 28 Aug 2026, ~3.8 m, wide swaths
+          covering the whole corridor.</li>
+      <li><b>After (SkySat):</b> 4 collects, 27 and 31 Aug 2026, 0.64–0.81 m.</li>
+      <li><b>After (Pelican):</b> 3 scenes, 27 Aug 2026, 0.55 m, covering the
+          Rasuwagadhi–Timure–Syabrubesi–Dhunche corridor.</li>
+      <li><b>After (Vantor WorldView/Legion):</b> 12 collects, 27 Aug – 1 Sep 2026,
+          0.31–0.59 m — the newest and sharpest imagery in the viewer.</li>
+      <li>The Vantor release also includes a <b>raw stereo pair</b> (27 Aug) for 3D/DSM
+          work, not used by this viewer; derivatives must keep the same licence.</li>
+    </ul>
+    <h3>Tools</h3>
+    <ul>
       <li><b>Band combinations:</b> true colour uses the RGB <code>visual</code> assets;
           false colour (NIR·R·G) and NDVI stream the 4-band analytic assets
           (<code>analytic_sr</code> pre-event, <code>analytic</code> post-event,
           <code>pansharpened</code> SkySat) with a per-scene percentile stretch.
           Because pre-event is surface reflectance and post-event is top-of-atmosphere
-          radiance, compare spatial patterns across epochs, not absolute values.</li>
+          radiance, compare spatial patterns across epochs, not absolute values.
+          Pelican and Vantor scenes stay true colour.</li>
       <li><b>Loupe (press L):</b> a magnifier that follows the cursor and shows the
           <i>other</i> epoch at +2 zoom — hover post-event debris to see what stood
           there before.</li>
-      <li><b>Before (Vantor):</b> 3 WorldView scenes (2021–2024), ~0.5 m hi-res baseline,
-          from the Vantor (formerly Maxar) Open Data Program.</li>
-      <li><b>After (PlanetScope):</b> 9 scenes, morning of 26 Aug 2026, ~3.8 m, two swaths.</li>
-      <li><b>After (SkySat):</b> 2 collects, 27 Aug 2026 02:00 UTC, ~0.8 m, over the
-          Rasuwagadhi border crossing and Syabrubesi.</li>
-      <li><b>After (Pelican):</b> 3 scenes, 27 Aug 2026 06:09 UTC, 0.55 m, covering the
-          Rasuwagadhi–Timure–Syabrubesi–Dhunche corridor.</li>
-      <li><b>After (Vantor Legion):</b> 9 WorldView/Legion collects, 27–28 Aug 2026,
-          ~0.5 m — the newest imagery in the viewer.</li>
+      <li><b>Vegetation loss (ΔNDVI):</b> a precomputed screening layer comparing mean
+          clear-sky NDVI before and after, cloud-masked with UDM2.</li>
+      <li><b>Annotations and view links:</b> mark hazards, blocked routes and confirmed
+          access, exchange them as GeoJSON, and share a link that restores the exact view.</li>
     </ul>
     <h3>Caveats</h3>
     <ul>

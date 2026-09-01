@@ -4,7 +4,7 @@
  */
 'use strict';
 
-var SHELL_CACHE = 'nlv-shell-v3';
+var SHELL_CACHE = 'nlv-shell-v4';
 var IMG_CACHE = 'nlv-imagery-v1';
 var TILE_CACHE = 'nlv-tiles-v1';
 var IMG_CACHE_MAX = 4000;
