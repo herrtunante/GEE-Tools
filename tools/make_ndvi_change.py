@@ -17,24 +17,54 @@ Usage:  python3 make_ndvi_change.py   (needs rasterio, pillow, numpy)
 """
 import json
 import os
+import re
+import ssl
+import urllib.parse
+import urllib.request
+from xml.etree import ElementTree
 
 import numpy as np
 import rasterio
-from rasterio.warp import reproject, transform as rtransform, Resampling
+from rasterio.warp import reproject, Resampling
 from rasterio.transform import from_origin
 from PIL import Image
 
-BASE = ("https://s3.us-west-2.amazonaws.com/us-west-2.opendata.source.coop"
-        "/planet/disasterdata/nepal-flash-flood-2026-08-26")
+BUCKET = "https://s3.us-west-2.amazonaws.com/us-west-2.opendata.source.coop"
+PREFIX = "planet/disasterdata/nepal-flash-flood-2026-08-26"
+BASE = f"{BUCKET}/{PREFIX}"
 
-PRE = ["20260527_053217_72_254a", "20260527_053219_95_254a",
-       "20260527_053221_96_254a", "20260527_053224_18_254a",
-       "20260527_053226_41_254a"]
-POST = ["20260826_050125_99_255f", "20260826_050128_33_255f",
-        "20260826_050130_66_255f", "20260826_050133_00_255f",
-        "20260826_050135_34_255f", "20260826_054456_67_251f",
-        "20260826_054458_74_251f", "20260826_054500_80_251f",
-        "20260826_054502_86_251f"]
+_ctx = ssl.create_default_context(cafile=os.environ.get("CURL_CA_BUNDLE") or None)
+
+def _list_keys():
+    keys, token = [], None
+    while True:
+        url = f"{BUCKET}/?list-type=2&prefix={PREFIX}/&max-keys=1000"
+        if token:
+            url += "&continuation-token=" + urllib.parse.quote(token)
+        with urllib.request.urlopen(url, context=_ctx, timeout=60) as r:
+            root = ElementTree.fromstring(r.read())
+        ns = {"s3": root.tag.split("}")[0].strip("{")}
+        keys += [k.text for k in root.findall(".//s3:Key", ns)]
+        nxt = root.find("s3:NextContinuationToken", ns)
+        if nxt is None:
+            return keys
+        token = nxt.text
+
+def discover():
+    """Find every PlanetScope collection and its scene ids, per epoch.
+
+    Discovered from the bucket rather than hardcoded: the release has
+    already been restructured once and keeps gaining collections.
+    """
+    epochs = {"pre-event": [], "post-event": []}
+    for key in _list_keys():
+        m = re.match(rf"{PREFIX}/(pre-event|post-event)/(planetscope-[0-9-]+)/items/([^/]+)/\3\.json$", key)
+        if m:
+            epochs[m.group(1)].append((f"{m.group(1)}/{m.group(2)}", m.group(3)))
+    for epoch, items in epochs.items():
+        colls = sorted(set(c for c, _ in items))
+        print(f"{epoch}: {len(items)} scenes in {colls}")
+    return epochs
 
 # target grid: whole catalog bbox at ~24 m
 WEST, SOUTH, EAST, NORTH = 84.894, 27.795, 85.648, 28.659
@@ -51,8 +81,8 @@ MODERATE = -0.25
 SEVERE = -0.45
 
 def scene_ndvi(phase, sid):
-    """Return (ndvi, clear) reprojected onto the target grid, or None."""
-    aname = "analytic_sr" if phase == "pre-event/planetscope-2026-05-27" else "analytic"
+    """Return NDVI reprojected onto the target grid (NaN where not clear)."""
+    aname = "analytic_sr" if phase.startswith("pre-event") else "analytic"
     aurl = f"{BASE}/{phase}/items/{sid}/{sid}_{aname}.tif"
     murl = f"{BASE}/{phase}/items/{sid}/{sid}_udm2.tif"
     with rasterio.open(aurl) as ds:
@@ -77,10 +107,11 @@ def scene_ndvi(phase, sid):
               resampling=Resampling.average)
     return dst_ndvi
 
-def epoch_mean(phase, ids):
+def epoch_mean(items):
+    """Mean clear-sky NDVI across every scene in an epoch."""
     total = np.zeros((HEIGHT, WIDTH), dtype="float32")
     count = np.zeros((HEIGHT, WIDTH), dtype="uint8")
-    for sid in ids:
+    for phase, sid in items:
         print("  ", sid)
         nd = scene_ndvi(phase, sid)
         good = ~np.isnan(nd)
@@ -95,10 +126,11 @@ def main():
     out_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data")
     os.makedirs(out_dir, exist_ok=True)
 
+    epochs = discover()
     print("pre-event NDVI")
-    pre = epoch_mean("pre-event/planetscope-2026-05-27", PRE)
+    pre = epoch_mean(epochs["pre-event"])
     print("post-event NDVI")
-    post = epoch_mean("post-event/planetscope-2026-08-26", POST)
+    post = epoch_mean(epochs["post-event"])
 
     both = ~np.isnan(pre) & ~np.isnan(post)
     delta = post - pre
@@ -114,7 +146,8 @@ def main():
     meta = {
         "bounds": [[SOUTH, WEST], [NORTH, EAST]],
         "res_deg": RES,
-        "pre_scenes": PRE, "post_scenes": POST,
+        "pre_scenes": sorted(s for _, s in epochs["pre-event"]),
+        "post_scenes": sorted(s for _, s in epochs["post-event"]),
         "pre_veg_threshold": PRE_VEG,
         "moderate_delta": MODERATE, "severe_delta": SEVERE,
         "compared_px": int(both.sum()),
